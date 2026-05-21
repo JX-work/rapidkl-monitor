@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Rapid KL · Bus Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="/style.css" />
+<style>
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+  @media (max-width: 920px) { .layout { grid-template-columns: 1fr; } }
+
+  .system-summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--bg-panel); border: 1px solid var(--line); padding: 14px 16px; }
+  .stat-label { font-size: 10px; color: var(--ink-dim); letter-spacing: .2em; text-transform: uppercase; }
+  .stat-value { font-family: var(--display); font-weight: 700; font-size: 26px;
+                margin-top: 6px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .stat[data-tone="ok"]   .stat-value { color: var(--ok); }
+  .stat[data-tone="warn"] .stat-value { color: var(--warn); }
+  .stat[data-tone="err"]  .stat-value { color: var(--err); }
+
+  .line-card {
+    display: grid; grid-template-columns: 44px 1fr auto;
+    gap: 12px; align-items: center; padding: 12px 14px;
+    background: var(--bg-panel2); border-left: 4px solid var(--line);
+    margin-bottom: 8px;
+  }
+  .line-card[data-status="normal"]     { border-left-color: var(--ok); }
+  .line-card[data-status="delayed"]    { border-left-color: var(--warn); }
+  .line-card[data-status="disrupted"]  { border-left-color: var(--err); }
+  .line-card[data-status="no-data"]    { border-left-color: var(--nodata); opacity:.7; }
+  .line-badge {
+    width: 44px; height: 44px; display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 14px;
+    color:#fff; position: relative;
+  }
+  .line-badge::after { content:''; position:absolute; inset:0; border: 1px solid rgba(255,255,255,.15); }
+  .line-info h3 { font-family: var(--display); font-weight: 500; font-size: 14px;
+                  margin: 0 0 2px; letter-spacing: -0.005em; }
+  .line-meta { font-size: 11px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  .line-meta b { color: var(--ink); font-weight: 500; }
+  .status-tag {
+    display: inline-block; padding: 4px 10px; font-size: 10px;
+    letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700;
+  }
+  .status-tag[data-s="normal"]    { background: rgba(74,222,128,.12); color: var(--ok); }
+  .status-tag[data-s="delayed"]   { background: rgba(251,191,36,.14); color: var(--warn); }
+  .status-tag[data-s="disrupted"] { background: rgba(239,68,68,.14); color: var(--err); }
+  .status-tag[data-s="no-data"]   { background: rgba(107,114,128,.18); color: var(--nodata); }
+
+  /* ─── route picker ─────────────────────────────────────────────────── */
+  .route-picker {
+    background: var(--bg-panel); border: 1px solid var(--line);
+    padding: 12px 14px; margin-bottom: 16px;
+    position: relative;
+  }
+  .route-picker-label {
+    font-size: 10px; color: var(--ink-dim);
+    letter-spacing: .2em; text-transform: uppercase; margin-bottom: 8px;
+  }
+  .route-picker-row { display: flex; gap: 8px; align-items: center; }
+  .route-input {
+    flex: 1; background: var(--bg); border: 1px solid var(--line);
+    color: var(--ink); padding: 8px 10px; font-family: var(--mono);
+    font-size: 13px; outline: none;
+    transition: border-color .15s;
+  }
+  .route-input:focus { border-color: var(--accent); }
+  .route-input::placeholder { color: var(--ink-soft); }
+  .route-clear {
+    background: transparent; border: 1px solid var(--line); color: var(--ink-dim);
+    padding: 8px 10px; font-family: var(--mono); font-size: 11px;
+    cursor: pointer; transition: all .15s;
+  }
+  .route-clear:hover { color: var(--err); border-color: var(--err); }
+
+  .route-dropdown {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 20;
+    max-height: 320px; overflow-y: auto;
+    background: var(--bg-panel); border: 1px solid var(--line); border-top: 0;
+    display: none;
+  }
+  .route-dropdown.open { display: block; }
+  .route-dropdown::-webkit-scrollbar { width: 6px; }
+  .route-dropdown::-webkit-scrollbar-thumb { background: var(--line); }
+  .route-option {
+    padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center;
+    transition: background .1s;
+  }
+  .route-option:hover, .route-option.highlight { background: var(--bg-panel2); }
+  .route-option:last-child { border-bottom: 0; }
+  .route-option-num {
+    font-family: var(--display); font-weight: 700; font-size: 12px;
+    background: var(--bg-panel2); padding: 4px 8px; min-width: 48px;
+    text-align: center; color: var(--accent);
+  }
+  .route-option-name {
+    font-size: 12px; color: var(--ink); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .route-active {
+    background: rgba(246,196,67,.08); border: 1px solid var(--accent);
+    padding: 10px 12px; margin-top: 8px; display: none;
+  }
+  .route-active.on { display: block; }
+  .route-active-title {
+    font-family: var(--display); font-weight: 700; color: var(--accent);
+    font-size: 13px; margin-bottom: 4px;
+  }
+  .route-active-meta { font-size: 11px; color: var(--ink-dim); }
+
+  /* ─── map ──────────────────────────────────────────────────────────── */
+  #map { height: calc(100vh - 220px); min-height: 500px;
+         border: 1px solid var(--line); background: #0a0d10; }
+  .leaflet-container { background: #0a0d10; font-family: var(--mono); }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background: var(--bg-panel); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 0;
+  }
+  .leaflet-popup-content { font-size: 12px; }
+  .leaflet-control-attribution { background: rgba(17,22,26,.8); color: var(--ink-dim); }
+  .leaflet-control-attribution a { color: var(--ink-dim); }
+  .leaflet-control-zoom a { background: var(--bg-panel); color: var(--ink); border-color: var(--line); }
+  .leaflet-control-zoom a:hover { background: var(--bg-panel2); }
+
+  .bus-dot {
+    border-radius: 50%; border: 2px solid #fff;
+    box-shadow: 0 0 8px rgba(0,0,0,.6);
+    transition: opacity .3s, transform .3s;
+  }
+  .bus-dot.dim { opacity: 0.35; }
+  .bus-dot.highlight {
+    transform: scale(1.8);
+    box-shadow: 0 0 16px rgba(246,196,67,.9);
+    border-color: var(--accent);
+    background: var(--accent) !important;
+    z-index: 1000 !important;
+  }
+
+  /* ─── locate-me button ─────────────────────────────────────────────── */
+  .locate-btn {
+    position: absolute; top: 16px; right: 16px; z-index: 500;
+    background: var(--bg-panel); border: 1px solid var(--line);
+    color: var(--ink); padding: 10px 14px;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .15em; text-transform: uppercase;
+    cursor: pointer; display: flex; align-items: center; gap: 8px;
+    transition: all .15s;
+  }
+  .locate-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .locate-btn[data-state="locating"] { color: var(--warn); border-color: var(--warn); }
+  .locate-btn[data-state="active"]   { color: var(--accent); border-color: var(--accent); background: rgba(246,196,67,.08); }
+  .locate-btn[data-state="error"]    { color: var(--err); border-color: var(--err); }
+  .locate-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* device location marker — person icon with pulsing halo */
+  .me-marker {
+    position: relative;
+    width: 32px; height: 32px;
+    display: grid; place-items: center;
+  }
+  .me-marker svg {
+    width: 22px; height: 22px;
+    color: #fff;
+    background: #4a9eff;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    padding: 4px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.5),
+                0 0 0 3px rgba(74,158,255,.35);
+    position: relative; z-index: 2;
+  }
+  .me-marker::before {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: rgba(74,158,255,.4);
+    animation: me-pulse 2s ease-in-out infinite;
+    z-index: 1;
+  }
+  @keyframes me-pulse {
+    0%   { transform: scale(0.7); opacity: 1; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo-mark"></div>
+    <div>
+      <h1>Rapid KL Ops</h1>
+      <small>Realtime Monitor</small>
+    </div>
+  </div>
+  <nav class="tabs">
+    <a href="/" class="active">Bus Live</a>
+    <a href="/alerts.html">Announcements</a>
+  </nav>
+  <div class="header-right">
+    <div>
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="clock-label">KL · MYT</div>
+    </div>
+    <div class="pulse off" id="pulse"></div>
+  </div>
+</header>
+
+<main>
+  <div class="layout">
+    <aside>
+      <div class="system-summary">
+        <div class="stat" data-tone="ok"><div class="stat-label">Buses Live</div><div class="stat-value" id="stat-veh">0</div></div>
+        <div class="stat" data-tone="err"><div class="stat-label">Disrupted</div><div class="stat-value" id="stat-err">0</div></div>
+      </div>
+
+      <!-- Route picker -->
+      <div class="route-picker">
+        <div class="route-picker-label">Filter by Route</div>
+        <div class="route-picker-row">
+          <input id="route-input" class="route-input" type="text" placeholder="Type number or name…" autocomplete="off" />
+          <button id="route-clear" class="route-clear" style="display:none;">×</button>
+        </div>
+        <div id="route-dropdown" class="route-dropdown"></div>
+        <div id="route-active" class="route-active">
+          <div class="route-active-title" id="route-active-name">—</div>
+          <div class="route-active-meta" id="route-active-meta">—</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title"><b>Bus Fleet</b><em id="last-update">—</em></div>
+        <div id="lines"></div>
+      </div>
+    </aside>
+    <div class="panel" style="padding: 8px; position: relative;">
+      <button id="locate-btn" class="locate-btn" data-state="idle" title="Show my location">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <circle cx="12" cy="12" r="9"></circle>
+          <line x1="12" y1="2"  x2="12" y2="5"></line>
+          <line x1="12" y1="19" x2="12" y2="22"></line>
+          <line x1="2"  y1="12" x2="5"  y2="12"></line>
+          <line x1="19" y1="12" x2="22" y2="12"></line>
+        </svg>
+        <span id="locate-label">Locate Me</span>
+      </button>
+      <div id="map"></div>
+    </div>
+  </div>
+</main>
+
+<!-- shared disruption modal -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <h2 id="modal-title">Service Disruption</h2>
+    <p id="modal-body">—</p>
+    <a id="modal-link" class="modal-link" target="_blank">Read more →</a>
+    <div class="modal-actions">
+      <button onclick="dismissModal()">Acknowledge</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Bus data: <a href="https://developer.data.gov.my/realtime-api/gtfs-realtime" target="_blank">data.gov.my GTFS-RT</a> ·
+  Announcements: <a href="https://myrapid.com.my/" target="_blank">myrapid.com.my</a> ·
+  Unofficial display, not affiliated with Rapid KL.
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+<script src="/app.js"></script>
+<script>
+  // ─── map setup ─────────────────────────────────────────────────────────
+  const map = L.map('map', { zoomControl: true, attributionControl: true })
+              .setView([3.140, 101.690], 12);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+  }).addTo(map);
+
+  // ─── markers per vehicle (re-used across snapshots) ────────────────────
+  const markers = new Map();     // vehicleId -> { marker, routeId, el }
+  const routePolylines = [];     // currently displayed polylines
+
+  // ─── locate-me ─────────────────────────────────────────────────────────
+  let meMarker = null;
+  let meAccuracyCircle = null;
+  let geoWatchId = null;
+  const locateBtn = document.getElementById('locate-btn');
+  const locateLabel = document.getElementById('locate-label');
+
+  function setLocateState(state, label) {
+    locateBtn.dataset.state = state;
+    if (label) locateLabel.textContent = label;
+  }
+
+  function renderMe(lat, lon, accuracy) {
+    if (!meMarker) {
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="me-marker">
+                 <svg viewBox="0 0 24 24" fill="currentColor">
+                   <circle cx="12" cy="7" r="4"/>
+                   <path d="M12 13c-4 0-7 2-7 5v3h14v-3c0-3-3-5-7-5z"/>
+                 </svg>
+               </div>`,
+        iconSize: [32, 32], iconAnchor: [16, 16],
+      });
+      meMarker = L.marker([lat, lon], { icon, zIndexOffset: 2000, interactive: true })
+        .addTo(map)
+        .bindPopup('You are here');
+    } else {
+      meMarker.setLatLng([lat, lon]);
+    }
+    if (typeof accuracy === 'number' && accuracy > 0) {
+      if (!meAccuracyCircle) {
+        meAccuracyCircle = L.circle([lat, lon], {
+          radius: accuracy,
+          color: '#4a9eff', weight: 1, opacity: 0.5,
+          fillColor: '#4a9eff', fillOpacity: 0.08,
+          interactive: false,
+        }).addTo(map);
+      } else {
+        meAccuracyCircle.setLatLng([lat, lon]);
+        meAccuracyCircle.setRadius(accuracy);
+      }
+    }
+  }
+
+  function stopLocating() {
+    if (geoWatchId !== null) {
+      navigator.geolocation.clearWatch(geoWatchId);
+      geoWatchId = null;
+    }
+    if (meMarker) { map.removeLayer(meMarker); meMarker = null; }
+    if (meAccuracyCircle) { map.removeLayer(meAccuracyCircle); meAccuracyCircle = null; }
+    setLocateState('idle', 'Locate Me');
+  }
+
+  locateBtn.addEventListener('click', () => {
+    // toggle off if already active
+    if (geoWatchId !== null) { stopLocating(); return; }
+
+    if (!('geolocation' in navigator)) {
+      setLocateState('error', 'Not supported');
+      return;
+    }
+    setLocateState('locating', 'Locating…');
+
+    let firstFix = true;
+    geoWatchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        renderMe(latitude, longitude, accuracy);
+        setLocateState('active', 'Tracking');
+        if (firstFix) {
+          map.flyTo([latitude, longitude], Math.max(map.getZoom(), 15), { duration: 1.2 });
+          firstFix = false;
+        }
+      },
+      (err) => {
+        let label = 'Location denied';
+        if (err.code === err.PERMISSION_DENIED) label = 'Permission denied';
+        else if (err.code === err.POSITION_UNAVAILABLE) label = 'Unavailable';
+        else if (err.code === err.TIMEOUT) label = 'Timed out';
+        setLocateState('error', label);
+        console.warn('geolocation error:', err);
+      },
+      { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15_000 }
+    );
+  });
+
+  // ─── route picker state ────────────────────────────────────────────────
+  let allRoutes = [];            // [{ route_id, internal_id, short_name, long_name, color }]
+  let selectedRoute = null;      // public route_id (shown in UI)
+  let selectedMatchKeys = null;  // Set of possible vehicle.routeId values to match
+
+  const input    = document.getElementById('route-input');
+  const dropdown = document.getElementById('route-dropdown');
+  const clearBtn = document.getElementById('route-clear');
+  const activeEl = document.getElementById('route-active');
+
+  async function loadRoutes() {
+    try {
+      const r = await fetch('/api/routes').then(r => r.json());
+      allRoutes = r.routes || [];
+      if (!r.loaded) {
+        input.placeholder = 'Loading route data…';
+        setTimeout(loadRoutes, 5000);
+      } else {
+        input.placeholder = `Type number or name… (${allRoutes.length} routes)`;
+      }
+    } catch (e) {
+      input.placeholder = 'Could not load routes';
+      console.error(e);
+    }
+  }
+  loadRoutes();
+
+  function renderDropdown(filter) {
+    const q = (filter || '').toLowerCase().trim();
+    let matches = allRoutes;
+    if (q) {
+      matches = allRoutes.filter(r =>
+        (r.short_name || '').toLowerCase().includes(q) ||
+        (r.long_name  || '').toLowerCase().includes(q) ||
+        (r.route_id   || '').toLowerCase().includes(q)
+      );
+    }
+    matches = matches.slice(0, 50);
+    if (matches.length === 0) {
+      dropdown.innerHTML = `<div class="route-option" style="cursor:default;color:var(--ink-soft);">No matches</div>`;
+      return;
+    }
+    dropdown.innerHTML = matches.map(r => `
+      <div class="route-option" data-id="${r.route_id}">
+        <div class="route-option-num">${escapeHtml(r.short_name || r.route_id)}</div>
+        <div class="route-option-name">${escapeHtml(r.long_name || '—')}</div>
+      </div>
+    `).join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  input.addEventListener('focus', () => {
+    renderDropdown(input.value);
+    dropdown.classList.add('open');
+  });
+  input.addEventListener('input', () => {
+    renderDropdown(input.value);
+    dropdown.classList.add('open');
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.route-picker')) dropdown.classList.remove('open');
+  });
+
+  dropdown.addEventListener('click', e => {
+    const opt = e.target.closest('.route-option');
+    if (!opt || !opt.dataset.id) return;
+    selectRoute(opt.dataset.id);
+    dropdown.classList.remove('open');
+  });
+
+  clearBtn.addEventListener('click', clearRoute);
+
+  function buildMatchKeys(r) {
+    // The realtime feed's vehicle.routeId may equal any of these depending on
+    // the dataset (KL Bus uses internal_id like "U5810"; MRT Feeder uses the
+    // public name like "T455" stored in long_name).
+    const keys = new Set();
+    if (r.internal_id) keys.add(r.internal_id);
+    if (r.long_name)   keys.add(r.long_name.trim());
+    if (r.route_id)    keys.add(r.route_id);
+    if (r.short_name)  keys.add(r.short_name);
+    // Also try without trailing direction digit (T4550 -> T455)
+    if (r.internal_id && /^[TU]\d{4,}$/i.test(r.internal_id)) {
+      keys.add(r.internal_id.slice(0, -1));
+    }
+    return keys;
+  }
+
+  async function selectRoute(routeId) {
+    selectedRoute = routeId;
+    const r = allRoutes.find(x => x.route_id === routeId);
+    selectedMatchKeys = r ? buildMatchKeys(r) : new Set([routeId]);
+    input.value = r ? `${r.short_name || r.route_id} — ${r.long_name || ''}`.trim() : routeId;
+    clearBtn.style.display = 'inline-block';
+
+    try {
+      const data = await fetch(`/api/route/${encodeURIComponent(routeId)}/shapes`).then(r => r.json());
+      drawRouteLines(data.polylines || [], r && r.color);
+      activeEl.classList.add('on');
+      document.getElementById('route-active-name').textContent =
+        r ? `${r.short_name || ''} ${r.long_name || ''}`.trim() : routeId;
+      document.getElementById('route-active-meta').textContent =
+        `${(data.polylines || []).length} direction(s) · ${countMatchingBuses()} buses on this route`;
+    } catch (e) {
+      console.error(e);
+    }
+    applyVehicleHighlight();
+  }
+
+  function clearRoute() {
+    selectedRoute = null;
+    selectedMatchKeys = null;
+    input.value = '';
+    clearBtn.style.display = 'none';
+    activeEl.classList.remove('on');
+    clearRouteLines();
+    applyVehicleHighlight();
+  }
+
+  function clearRouteLines() {
+    while (routePolylines.length) map.removeLayer(routePolylines.pop());
+  }
+
+  function drawRouteLines(polylines, routeColor) {
+    clearRouteLines();
+    const color = routeColor || '#f6c443';
+    const bounds = [];
+    const arrowsAvailable = typeof L.polylineDecorator === 'function' && L.Symbol && L.Symbol.arrowHead;
+    for (const p of polylines) {
+      if (!p.points || p.points.length < 2) continue;
+      const line = L.polyline(p.points, {
+        color, weight: 5, opacity: 0.9,
+      }).addTo(map);
+      const halo = L.polyline(p.points, {
+        color, weight: 12, opacity: 0.15,
+      }).addTo(map);
+      routePolylines.push(line, halo);
+
+      if (arrowsAvailable) {
+        const arrows = L.polylineDecorator(line, {
+          patterns: [{
+            offset: 25,
+            repeat: 80,
+            symbol: L.Symbol.arrowHead({
+              pixelSize: 12,
+              polygon: false,
+              pathOptions: { stroke: true, color: '#fff', weight: 3, opacity: 0.95 },
+            }),
+          }],
+        }).addTo(map);
+        routePolylines.push(arrows);
+      }
+      p.points.forEach(pt => bounds.push(pt));
+    }
+    if (bounds.length) map.fitBounds(bounds, { padding: [40, 40] });
+  }
+
+  function normalizeRouteId(rid) {
+    // The realtime feed occasionally tacks a direction suffix onto the route_id
+    // (e.g. "T155 Outbound"). Strip it so we can still match the canonical row.
+    if (!rid) return rid;
+    return String(rid).replace(/\s+(outbound|inbound|in|out|bound)\b.*$/i, '').trim();
+  }
+
+  function countMatchingBuses() {
+    if (!selectedMatchKeys) return 0;
+    let n = 0;
+    for (const [, e] of markers) {
+      const rid = normalizeRouteId(e.routeId);
+      if (rid && selectedMatchKeys.has(rid)) n++;
+    }
+    return n;
+  }
+
+  function applyVehicleHighlight() {
+    for (const [, e] of markers) {
+      const inner = e.marker.getElement()?.firstElementChild;
+      if (!inner) continue;
+      inner.classList.remove('dim', 'highlight');
+      if (selectedMatchKeys) {
+        const rid = normalizeRouteId(e.routeId);
+        if (rid && selectedMatchKeys.has(rid)) inner.classList.add('highlight');
+        else                                    inner.classList.add('dim');
+      }
+    }
+    if (selectedRoute) {
+      const meta = document.getElementById('route-active-meta');
+      if (meta) {
+        const dirs = Math.max(1, Math.round(routePolylines.length / 3));
+        meta.textContent = `${dirs} direction(s) · ${countMatchingBuses()} buses on this route`;
+      }
+    }
+  }
+
+  // ─── render vehicles ───────────────────────────────────────────────────
+  function renderMap(groups) {
+    const seen = new Set();
+    for (const g of groups) {
+      for (const v of (g.vehicles || [])) {
+        if (typeof v.lat !== 'number' || typeof v.lon !== 'number') continue;
+        seen.add(v.id);
+        let entry = markers.get(v.id);
+        if (!entry) {
+          // raw HTML so the inner div is the actual DOM child we can style
+          const icon = L.divIcon({
+            className: '',
+            html: `<div class="bus-dot" style="width:10px;height:10px;background:${g.color};"></div>`,
+            iconSize: [14, 14], iconAnchor: [7, 7],
+          });
+          const m = L.marker([v.lat, v.lon], { icon, title: `${v.routeId||'?'}` }).addTo(map);
+          m.bindPopup(`<b>Route ${v.routeId || '—'}</b><br>Vehicle: ${v.id}<br>Speed: ${v.speed ? Math.round(v.speed*3.6)+' km/h' : '—'}`);
+          entry = { marker: m, routeId: v.routeId };
+          markers.set(v.id, entry);
+        } else {
+          entry.marker.setLatLng([v.lat, v.lon]);
+          entry.routeId = v.routeId;
+        }
+      }
+    }
+    for (const [id, e] of markers) {
+      if (!seen.has(id)) { map.removeLayer(e.marker); markers.delete(id); }
+    }
+    // Apply highlight after Leaflet has had a chance to render new markers.
+    // requestAnimationFrame guarantees the DOM nodes exist by the time we read them.
+    requestAnimationFrame(applyVehicleHighlight);
+  }
+
+  // ─── side panel ───────────────────────────────────────────────────────
+  function renderSide(snap) {
+    const stale = !snap.lastBusUpdate || Date.now() - snap.lastBusUpdate > (snap.busPollMs || 60000) * 2;
+    document.getElementById('last-update').textContent = 'updated ' + RapidKL.fmtAgo(snap.lastBusUpdate);
+    document.getElementById('pulse').classList.toggle('off', stale);
+
+    let total = 0, disrupted = 0;
+    snap.groups.forEach(g => { total += g.vehicleCount; if (g.status === 'disrupted') disrupted++; });
+    document.getElementById('stat-veh').textContent = total;
+    document.getElementById('stat-err').textContent = disrupted;
+
+    document.getElementById('lines').innerHTML = snap.groups.map(L => `
+      <div class="line-card" data-status="${L.status}">
+        <div class="line-badge" style="background:${L.color}">${L.short}</div>
+        <div class="line-info">
+          <h3>${L.name}</h3>
+          <div class="line-meta"><b>${L.vehicleCount}</b> buses ${L.baseline ? `<span style="opacity:.5">/ ${L.baseline} typical</span>` : ''}</div>
+        </div>
+        <span class="status-tag" data-s="${L.status}">${({
+          normal:'Normal', delayed:'Reduced', disrupted:'Disrupted', 'no-data':'No Data'
+        })[L.status] || L.status}</span>
+      </div>
+    `).join('');
+  }
+
+  RapidKL.on('snapshot', snap => {
+    renderSide(snap);
+    renderMap(snap.groups);
+  });
+
+  // periodic ago refresh
+  setInterval(() => {
+    fetch('/api/snapshot').then(r=>r.json()).then(snap => {
+      renderSide(snap); renderMap(snap.groups);
+    }).catch(()=>{});
+  }, 30000);
+</script>
+</body>
+</html>

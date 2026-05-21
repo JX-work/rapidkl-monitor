@@ -1,0 +1,19 @@
+{
+  "name": "rapidkl-monitor",
+  "version": "1.0.0",
+  "description": "Realtime monitor for Rapid KL LRT/MRT/Monorail/BRT using data.gov.my GTFS-Realtime",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "gtfs-realtime-bindings": "^1.1.1",
+    "unzipper": "^0.12.3",
+    "ws": "^8.18.0"
+  }
+}
