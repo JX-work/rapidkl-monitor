@@ -27,6 +27,7 @@ body {
     radial-gradient(at 20% 0%, rgba(246,196,67,.04) 0px, transparent 50%),
     radial-gradient(at 80% 100%, rgba(74,222,128,.03) 0px, transparent 50%);
   background-attachment: fixed; min-height: 100vh;
+  overflow-x: hidden;
 }
 body::before {
   content:''; position:fixed; inset:0; pointer-events:none; z-index:1;
@@ -62,6 +63,7 @@ nav.tabs a {
   padding: 8px 16px; font-size: 11px; letter-spacing: .2em;
   text-transform: uppercase; color: var(--ink-dim);
   border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+  white-space: nowrap;
 }
 nav.tabs a:hover { color: var(--ink); }
 nav.tabs a.active { color: var(--accent); border-bottom-color: var(--accent); }
@@ -84,18 +86,44 @@ nav.tabs a.active { color: var(--accent); border-bottom-color: var(--accent); }
 .pulse.off { background: var(--err); box-shadow: 0 0 12px var(--err); animation: none; }
 @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity: .3 } }
 
+/* ─── mobile header (< 760px) ──────────────────────────────────────────── */
+@media (max-width: 760px) {
+  header {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "brand right" "tabs tabs";
+    gap: 12px 16px;
+    padding: 12px 16px;
+  }
+  .brand     { grid-area: brand; gap: 10px; }
+  .brand h1  { font-size: 15px; }
+  .brand small { font-size: 9px; }
+  .logo-mark { width: 26px; height: 26px; }
+  .logo-mark::after { width: 8px; height: 8px; }
+  .header-right { grid-area: right; gap: 12px; }
+  .clock     { font-size: 14px; }
+  .clock-label { display: none; }
+  nav.tabs   { grid-area: tabs; overflow-x: auto; }
+  nav.tabs a { padding: 6px 12px; font-size: 10px; }
+}
+
 /* ─── layout ──────────────────────────────────────────────────────────── */
 main { padding: 20px 28px 40px; max-width: 1600px; margin: 0 auto; }
+@media (max-width: 760px) {
+  main { padding: 14px 12px 28px; }
+}
 
 .panel {
   background: var(--bg-panel); border: 1px solid var(--line);
   padding: 18px 20px 20px;
 }
+@media (max-width: 760px) {
+  .panel { padding: 14px 14px 16px; }
+}
 .panel-title {
   display: flex; justify-content: space-between; align-items: baseline;
   font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
   color: var(--ink-dim); margin-bottom: 14px; padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line); gap: 8px; flex-wrap: wrap;
 }
 .panel-title b { color: var(--ink); font-weight: 700; }
 .panel-title em { font-style: normal; color: var(--ink-soft);
@@ -105,13 +133,17 @@ main { padding: 20px 28px 40px; max-width: 1600px; margin: 0 auto; }
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(0,0,0,.7);
   display: none; place-items: center; z-index: 50;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px); padding: 16px;
 }
 .modal-backdrop.on { display: grid; }
 .modal {
   background: var(--bg-panel); border: 1px solid var(--err);
-  width: min(480px, 90vw); padding: 28px; position: relative;
+  width: min(480px, 100%); padding: 28px; position: relative;
   animation: slideIn .3s ease;
+}
+@media (max-width: 760px) {
+  .modal { padding: 20px; }
+  .modal h2 { font-size: 17px; }
 }
 @keyframes slideIn { from { transform: translateY(-12px); opacity:0 } to { transform: none; opacity:1 } }
 .modal::before {
@@ -143,3 +175,6 @@ footer {
   letter-spacing: .1em; margin-top: 40px;
 }
 footer a { color: var(--ink-dim); border-bottom: 1px dotted var(--ink-soft); }
+@media (max-width: 760px) {
+  footer { padding: 18px 14px; font-size: 10px; margin-top: 24px; line-height: 1.7; }
+}

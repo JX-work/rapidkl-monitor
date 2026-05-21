@@ -11,13 +11,19 @@
 <link rel="stylesheet" href="/style.css" />
 <style>
   .layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
-  @media (max-width: 920px) { .layout { grid-template-columns: 1fr; } }
+  @media (max-width: 920px) {
+    .layout { grid-template-columns: 1fr; gap: 14px; }
+  }
 
   .system-summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
   .stat { background: var(--bg-panel); border: 1px solid var(--line); padding: 14px 16px; }
   .stat-label { font-size: 10px; color: var(--ink-dim); letter-spacing: .2em; text-transform: uppercase; }
   .stat-value { font-family: var(--display); font-weight: 700; font-size: 26px;
                 margin-top: 6px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  @media (max-width: 760px) {
+    .stat { padding: 10px 12px; }
+    .stat-value { font-size: 22px; }
+  }
   .stat[data-tone="ok"]   .stat-value { color: var(--ok); }
   .stat[data-tone="warn"] .stat-value { color: var(--warn); }
   .stat[data-tone="err"]  .stat-value { color: var(--err); }
@@ -65,15 +71,15 @@
   .route-input {
     flex: 1; background: var(--bg); border: 1px solid var(--line);
     color: var(--ink); padding: 8px 10px; font-family: var(--mono);
-    font-size: 13px; outline: none;
+    font-size: 13px; outline: none; width: 100%; min-width: 0;
     transition: border-color .15s;
   }
   .route-input:focus { border-color: var(--accent); }
   .route-input::placeholder { color: var(--ink-soft); }
   .route-clear {
     background: transparent; border: 1px solid var(--line); color: var(--ink-dim);
-    padding: 8px 10px; font-family: var(--mono); font-size: 11px;
-    cursor: pointer; transition: all .15s;
+    padding: 8px 12px; font-family: var(--mono); font-size: 14px;
+    cursor: pointer; transition: all .15s; flex-shrink: 0;
   }
   .route-clear:hover { color: var(--err); border-color: var(--err); }
 
@@ -82,6 +88,11 @@
     max-height: 320px; overflow-y: auto;
     background: var(--bg-panel); border: 1px solid var(--line); border-top: 0;
     display: none;
+  }
+  @media (max-width: 760px) {
+    .route-dropdown { max-height: 240px; }
+    .route-option { padding: 12px 14px; }
+    .route-input { font-size: 16px; padding: 10px 12px; } /* 16px prevents iOS zoom on focus */
   }
   .route-dropdown.open { display: block; }
   .route-dropdown::-webkit-scrollbar { width: 6px; }
@@ -117,6 +128,9 @@
   /* ─── map ──────────────────────────────────────────────────────────── */
   #map { height: calc(100vh - 220px); min-height: 500px;
          border: 1px solid var(--line); background: #0a0d10; }
+  @media (max-width: 920px) {
+    #map { height: 60vh; min-height: 380px; }
+  }
   .leaflet-container { background: #0a0d10; font-family: var(--mono); }
   .leaflet-popup-content-wrapper, .leaflet-popup-tip {
     background: var(--bg-panel); color: var(--ink);
@@ -157,6 +171,11 @@
   .locate-btn[data-state="active"]   { color: var(--accent); border-color: var(--accent); background: rgba(246,196,67,.08); }
   .locate-btn[data-state="error"]    { color: var(--err); border-color: var(--err); }
   .locate-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+  @media (max-width: 760px) {
+    .locate-btn { top: 12px; right: 12px; padding: 10px; }
+    .locate-btn span { display: none; }
+    .locate-btn svg { width: 18px; height: 18px; }
+  }
 
   /* device location marker — person icon with pulsing halo */
   .me-marker {
@@ -237,7 +256,7 @@
         <div id="lines"></div>
       </div>
     </aside>
-    <div class="panel" style="padding: 8px; position: relative;">
+    <div class="panel" style="padding: 8px; position: relative; overflow: hidden; max-width: 100%;">
       <button id="locate-btn" class="locate-btn" data-state="idle" title="Show my location">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"></circle>
@@ -452,15 +471,11 @@
   clearBtn.addEventListener('click', clearRoute);
 
   function buildMatchKeys(r) {
-    // The realtime feed's vehicle.routeId may equal any of these depending on
-    // the dataset (KL Bus uses internal_id like "U5810"; MRT Feeder uses the
-    // public name like "T455" stored in long_name).
     const keys = new Set();
     if (r.internal_id) keys.add(r.internal_id);
     if (r.long_name)   keys.add(r.long_name.trim());
     if (r.route_id)    keys.add(r.route_id);
     if (r.short_name)  keys.add(r.short_name);
-    // Also try without trailing direction digit (T4550 -> T455)
     if (r.internal_id && /^[TU]\d{4,}$/i.test(r.internal_id)) {
       keys.add(r.internal_id.slice(0, -1));
     }
@@ -537,8 +552,6 @@
   }
 
   function normalizeRouteId(rid) {
-    // The realtime feed occasionally tacks a direction suffix onto the route_id
-    // (e.g. "T155 Outbound"). Strip it so we can still match the canonical row.
     if (!rid) return rid;
     return String(rid).replace(/\s+(outbound|inbound|in|out|bound)\b.*$/i, '').trim();
   }
@@ -582,7 +595,6 @@
         seen.add(v.id);
         let entry = markers.get(v.id);
         if (!entry) {
-          // raw HTML so the inner div is the actual DOM child we can style
           const icon = L.divIcon({
             className: '',
             html: `<div class="bus-dot" style="width:10px;height:10px;background:${g.color};"></div>`,
@@ -601,8 +613,6 @@
     for (const [id, e] of markers) {
       if (!seen.has(id)) { map.removeLayer(e.marker); markers.delete(id); }
     }
-    // Apply highlight after Leaflet has had a chance to render new markers.
-    // requestAnimationFrame guarantees the DOM nodes exist by the time we read them.
     requestAnimationFrame(applyVehicleHighlight);
   }
 
