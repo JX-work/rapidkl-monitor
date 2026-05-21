@@ -15,7 +15,11 @@
     .layout { grid-template-columns: 1fr; gap: 14px; }
   }
 
-  .system-summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+  .system-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px; margin-bottom: 16px;
+  }
   .stat { background: var(--bg-panel); border: 1px solid var(--line); padding: 14px 16px; }
   .stat-label { font-size: 10px; color: var(--ink-dim); letter-spacing: .2em; text-transform: uppercase; }
   .stat-value { font-family: var(--display); font-weight: 700; font-size: 26px;
@@ -471,11 +475,15 @@
   clearBtn.addEventListener('click', clearRoute);
 
   function buildMatchKeys(r) {
+    // The realtime feed's vehicle.routeId may equal any of these depending on
+    // the dataset (KL Bus uses internal_id like "U5810"; MRT Feeder uses the
+    // public name like "T455" stored in long_name).
     const keys = new Set();
     if (r.internal_id) keys.add(r.internal_id);
     if (r.long_name)   keys.add(r.long_name.trim());
     if (r.route_id)    keys.add(r.route_id);
     if (r.short_name)  keys.add(r.short_name);
+    // Also try without trailing direction digit (T4550 -> T455)
     if (r.internal_id && /^[TU]\d{4,}$/i.test(r.internal_id)) {
       keys.add(r.internal_id.slice(0, -1));
     }
@@ -552,6 +560,8 @@
   }
 
   function normalizeRouteId(rid) {
+    // The realtime feed occasionally tacks a direction suffix onto the route_id
+    // (e.g. "T155 Outbound"). Strip it so we can still match the canonical row.
     if (!rid) return rid;
     return String(rid).replace(/\s+(outbound|inbound|in|out|bound)\b.*$/i, '').trim();
   }
@@ -595,6 +605,7 @@
         seen.add(v.id);
         let entry = markers.get(v.id);
         if (!entry) {
+          // raw HTML so the inner div is the actual DOM child we can style
           const icon = L.divIcon({
             className: '',
             html: `<div class="bus-dot" style="width:10px;height:10px;background:${g.color};"></div>`,
@@ -613,6 +624,8 @@
     for (const [id, e] of markers) {
       if (!seen.has(id)) { map.removeLayer(e.marker); markers.delete(id); }
     }
+    // Apply highlight after Leaflet has had a chance to render new markers.
+    // requestAnimationFrame guarantees the DOM nodes exist by the time we read them.
     requestAnimationFrame(applyVehicleHighlight);
   }
 

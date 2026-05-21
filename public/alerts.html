@@ -22,6 +22,10 @@
   .filter-bar button.active {
     background: var(--bg-panel); color: var(--accent); border-color: var(--accent);
   }
+  @media (max-width: 760px) {
+    .filter-bar { gap: 6px; }
+    .filter-bar button { padding: 7px 10px; font-size: 9px; }
+  }
 
   .announcement {
     display: grid; grid-template-columns: auto 1fr auto;
@@ -35,6 +39,16 @@
   .announcement[data-tone="warn"]  { border-left-color: var(--warn); }
   .announcement[data-tone="info"]  { border-left-color: var(--info); }
   .announcement[data-tone="mute"]  { border-left-color: var(--ink-soft); opacity: .85; }
+  @media (max-width: 760px) {
+    .announcement {
+      grid-template-columns: auto 1fr;
+      grid-template-areas: "cat date" "body body";
+      padding: 12px 14px; gap: 10px;
+    }
+    .announcement .ann-cat  { grid-area: cat; }
+    .announcement .ann-date { grid-area: date; align-self: center; }
+    .announcement > div:not(.ann-cat):not(.ann-date) { grid-area: body; }
+  }
 
   .ann-cat {
     font-family: var(--display); font-weight: 700; font-size: 9px;
@@ -69,7 +83,12 @@
   }
 
   .summary-strip {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px; margin-bottom: 20px;
+  }
+  @media (max-width: 760px) {
+    .summary-strip { gap: 8px; }
   }
   .stat {
     background: var(--bg-panel); border: 1px solid var(--line);
