@@ -242,14 +242,46 @@ function parseRss(xml) {
   return items;
 }
 
+// Fetch the myrapid RSS feed. Some hosts (e.g. datacenter IPs like Railway)
+// are blocked by myrapid's Incapsula WAF, so we fall back to public read
+// proxies that fetch from a different IP range.
+async function fetchRssXml() {
+  const target = 'https://myrapid.com.my/feed/';
+  const attempts = [
+    // 1. direct (works from residential IPs / local dev)
+    { label: 'direct', url: target,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; rapidkl-monitor/2.0)',
+                 'Accept': 'application/rss+xml, application/xml, text/xml' } },
+    // 2. r.jina.ai text proxy (returns page content from its own IP)
+    { label: 'jina', url: `https://r.jina.ai/${target}`,
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/xml, application/xml, */*' } },
+    // 3. allorigins raw proxy
+    { label: 'allorigins', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
+      headers: { 'User-Agent': 'Mozilla/5.0' } },
+  ];
+
+  let lastErr = null;
+  for (const a of attempts) {
+    try {
+      const res = await fetch(a.url, { headers: a.headers, signal: AbortSignal.timeout(20000) });
+      if (!res.ok) { lastErr = `${a.label} HTTP ${res.status}`; continue; }
+      const text = await res.text();
+      // sanity: must contain <item> or <rss to be a usable feed
+      if (/<item[\s>]/i.test(text) || /<rss[\s>]/i.test(text)) {
+        if (a.label !== 'direct') console.log(`[rss] fetched via ${a.label} proxy`);
+        return text;
+      }
+      lastErr = `${a.label} returned non-feed content`;
+    } catch (e) {
+      lastErr = `${a.label}: ${e.message}`;
+    }
+  }
+  throw new Error(lastErr || 'all fetch attempts failed');
+}
+
 async function pollRss() {
   try {
-    const res = await fetch('https://myrapid.com.my/feed/', {
-      headers: { 'User-Agent': 'rapidkl-monitor/2.0 (open-source dashboard)',
-                 'Accept': 'application/rss+xml, application/xml, text/xml' },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const xml = await res.text();
+    const xml = await fetchRssXml();
     const items = parseRss(xml);
 
     const enriched = items.map(it => {
