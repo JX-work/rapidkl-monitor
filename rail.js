@@ -13,9 +13,23 @@
 // All data is fetched at startup and refreshed daily — nothing is stored on disk.
 
 const unzipper = require('unzipper');
+const fs = require('fs');
+const path = require('path');
 
 const RAIL_GTFS_URL = 'https://api.data.gov.my/gtfs-static/prasarana?category=rapid-rail-kl';
 const REFRESH_MS = 24 * 60 * 60_000;
+
+// Optional data files (committed to repo). Loaded once at require time.
+function loadJsonSafe(rel) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, rel), 'utf8'));
+  } catch (e) {
+    console.warn(`[rail] optional data not loaded: ${rel} (${e.code || e.message})`);
+    return null;
+  }
+}
+const fares = loadJsonSafe('data/rail-fares.json');
+const transfersData = loadJsonSafe('data/rail-transfers.json');
 
 // ─── CSV parser (same minimal one used elsewhere) ──────────────────────────
 function parseCsv(text) {
@@ -300,6 +314,179 @@ function lineStations(routeId) {
   };
 }
 
+// ─── fare lookup ────────────────────────────────────────────────────────────
+function getFare(fromStopId, toStopId) {
+  if (!fares) return null;
+  const map = fares.gtfs_stop_id_to_fare_code || {};
+  const fromCode = map[fromStopId];
+  const toCode = map[toStopId];
+  if (!fromCode || !toCode) return null;
+  const cashRow = (fares.cash || {})[fromCode];
+  const cashlessRow = (fares.cashless || {})[fromCode];
+  const cash = cashRow && typeof cashRow[toCode] === 'number' ? cashRow[toCode] : null;
+  const cashless = cashlessRow && typeof cashlessRow[toCode] === 'number' ? cashlessRow[toCode] : null;
+  let concession = null;
+  if (cash != null) concession = Math.floor(cash * 0.5 / 0.10) * 0.10;
+  return {
+    cash, cashless,
+    concession: concession != null ? Math.round(concession * 100) / 100 : null,
+  };
+}
+
+// ─── build the transfer graph (once, from loaded data) ──────────────────────
+// nodes = stop_ids; edges = adjacent stops on a line (cost = 1 hop) +
+// transfer links between co-located stops (cost = 0 hops, but marks a change).
+let graph = null;         // stop_id -> [{ to, kind:'ride'|'transfer', routeId }]
+let stopToRoutes = null;  // stop_id -> Set(routeId)
+
+function buildGraph() {
+  graph = {};
+  stopToRoutes = {};
+  const addEdge = (a, b, kind, routeId) => {
+    (graph[a] ||= []).push({ to: b, kind, routeId });
+  };
+
+  // ride edges: consecutive stops on each route (both directions)
+  for (const [routeId, stopIds] of Object.entries(rail.routeStops)) {
+    for (const sid of stopIds) {
+      (stopToRoutes[sid] ||= new Set()).add(routeId);
+    }
+    for (let i = 0; i < stopIds.length - 1; i++) {
+      addEdge(stopIds[i], stopIds[i+1], 'ride', routeId);
+      addEdge(stopIds[i+1], stopIds[i], 'ride', routeId);
+    }
+  }
+
+  // transfer edges: between co-located stops (from rail-transfers.json)
+  const transfers = (transfersData && transfersData.transfers) || [];
+  for (const t of transfers) {
+    const sts = t.stations || [];
+    for (let i = 0; i < sts.length; i++) {
+      for (let j = 0; j < sts.length; j++) {
+        if (i !== j && graph[sts[i]] !== undefined || rail.stops[sts[i]]) {
+          if (i !== j) addEdge(sts[i], sts[j], 'transfer', null);
+        }
+      }
+    }
+  }
+}
+
+// ─── journey planning: BFS minimising transfers then hops ───────────────────
+function planJourney(fromStopId, toStopId) {
+  if (!rail.loaded) return { error: 'rail data not loaded' };
+  if (!rail.stops[fromStopId]) return { error: 'origin not found' };
+  if (!rail.stops[toStopId]) return { error: 'destination not found' };
+  if (fromStopId === toStopId) return { error: 'origin and destination are the same' };
+  if (!graph) buildGraph();
+
+  // BFS over (stop, currentRoute). We prefer fewer transfers, so we do a
+  // 0-1 BFS: transfer edges cost 1 (a "change"), ride edges cost 0 within
+  // the queue ordering but we still track hop count for tie-breaking.
+  const start = { stop: fromStopId, route: null };
+  const key = s => `${s.stop}|${s.route || ''}`;
+  const visited = new Set();
+  // priority: transfers asc, then hops asc — use a simple Dijkstra-ish loop
+  const pq = [{ stop: fromStopId, route: null, transfers: 0, hops: 0, path: [] }];
+
+  while (pq.length) {
+    // pop lowest (transfers, hops)
+    pq.sort((a, b) => a.transfers - b.transfers || a.hops - b.hops);
+    const cur = pq.shift();
+    const k = key(cur);
+    if (visited.has(k)) continue;
+    visited.add(k);
+
+    if (cur.stop === toStopId) {
+      return finishJourney(cur, fromStopId, toStopId);
+    }
+
+    for (const edge of (graph[cur.stop] || [])) {
+      const next = {
+        stop: edge.to,
+        route: edge.kind === 'ride' ? edge.routeId : cur.route,
+        transfers: cur.transfers + (edge.kind === 'ride' && cur.route && cur.route !== edge.routeId ? 1 : 0)
+                              + (edge.kind === 'transfer' ? 1 : 0),
+        hops: cur.hops + (edge.kind === 'ride' ? 1 : 0),
+        path: [...cur.path, { ...edge, from: cur.stop }],
+      };
+      if (!visited.has(key(next))) pq.push(next);
+    }
+  }
+  return { error: 'no route found' };
+}
+
+function finishJourney(end, fromStopId, toStopId) {
+  // Collapse the edge path into human-readable legs (grouped by route).
+  const legs = [];
+  let cur = null;
+  for (const e of end.path) {
+    if (e.kind === 'transfer') {
+      if (cur) { legs.push(cur); cur = null; }
+      continue;
+    }
+    if (!cur || cur.routeId !== e.routeId) {
+      if (cur) legs.push(cur);
+      cur = { routeId: e.routeId, from: e.from, to: e.to, stops: 1 };
+    } else {
+      cur.to = e.to; cur.stops++;
+    }
+  }
+  if (cur) legs.push(cur);
+
+  const legDetails = legs.map(l => {
+    const route = rail.routes[l.routeId] || {};
+    return {
+      routeId: l.routeId,
+      lineName: route.long || l.routeId,
+      lineShort: route.short || l.routeId,
+      color: route.color || '#888',
+      fromStop: l.from,
+      fromName: rail.stops[l.from]?.name || l.from,
+      toStop: l.to,
+      toName: rail.stops[l.to]?.name || l.to,
+      stops: l.stops,
+    };
+  });
+
+  const fare = getFare(fromStopId, toStopId);
+  const totalStops = legDetails.reduce((s, l) => s + l.stops, 0);
+  // rough time: ~2.5 min per stop + 4 min per transfer
+  const transfers = Math.max(0, legDetails.length - 1);
+  const estMinutes = Math.round(totalStops * 2.5 + transfers * 4);
+
+  return {
+    from: { stop_id: fromStopId, name: rail.stops[fromStopId]?.name },
+    to: { stop_id: toStopId, name: rail.stops[toStopId]?.name },
+    legs: legDetails,
+    transfers,
+    totalStops,
+    estMinutes,
+    fare,
+  };
+}
+
+// ─── search all stations (for journey planner autocomplete) ─────────────────
+function allStations() {
+  // Deduplicate by name (co-located transfer stops share a name), but keep
+  // one representative stop_id + which lines serve it.
+  if (!graph) buildGraph();
+  const byName = {};
+  for (const [sid, stop] of Object.entries(rail.stops)) {
+    const routes = [...(stopToRoutes[sid] || [])];
+    if (routes.length === 0) continue;  // skip stops not on any known route
+    const name = stop.name;
+    if (!byName[name]) {
+      byName[name] = { stop_id: sid, name, lat: stop.lat, lon: stop.lon, lines: new Set(routes) };
+    } else {
+      routes.forEach(r => byName[name].lines.add(r));
+    }
+  }
+  return Object.values(byName)
+    .map(s => ({ stop_id: s.stop_id, name: s.name, lat: s.lat, lon: s.lon,
+                 lines: [...s.lines] }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 module.exports = {
   rail,
   loadRailGtfs,
@@ -308,4 +495,7 @@ module.exports = {
   listLines,
   lineStations,
   activeServiceIds,
+  planJourney,
+  getFare,
+  allStations,
 };

@@ -533,6 +533,18 @@ app.get('/api/rail/arrivals/:stopId', (req, res) => {
   res.json(railModule.nextTrains(routeId, stopId, new Date(), 90));
 });
 
+// All rail stations (deduped by name) for the journey planner search boxes.
+app.get('/api/rail/stations', (_req, res) => {
+  res.json({ stations: railModule.allStations(), loaded: railModule.rail.loaded });
+});
+
+// Journey planning: from -> to, returns legs + transfers + fare.
+app.get('/api/rail/journey', (req, res) => {
+  const { from, to } = req.query;
+  if (!from || !to) return res.status(400).json({ error: 'from and to query params required' });
+  res.json(railModule.planJourney(from, to));
+});
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', ws =>
