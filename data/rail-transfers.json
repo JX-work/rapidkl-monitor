@@ -1,0 +1,551 @@
+{
+  "note": "Rail transfer/interchange stations derived from Prasarana GTFS static feed. Two stops on different lines are considered the same transfer if either (a) haversine distance < 250 m, or (b) their normalized stop_name matches (with a small alias map for sponsored/rename variants). Clusters computed via union-find. Excludes same-line adjacent stations (those aren't transfers).",
+  "generated": "2026-07-07",
+  "source": "https://api.data.gov.my/gtfs-static/prasarana?category=rapid-rail-kl",
+  "distance_threshold_m": 250,
+  "totalTransfers": 23,
+  "transfers": [
+    {
+      "name": "AMPANG PARK",
+      "stations": [
+        "KJ9",
+        "PY20"
+      ],
+      "lines": [
+        "KJL",
+        "PYL"
+      ],
+      "walkMeters": 294,
+      "stopNames": [
+        {
+          "stop_id": "KJ9",
+          "stop_name": "AMPANG PARK"
+        },
+        {
+          "stop_id": "PY20",
+          "stop_name": "AMPANG PARK"
+        }
+      ]
+    },
+    {
+      "name": "BANDAR UTAMA",
+      "stations": [
+        "KG09",
+        "SA1"
+      ],
+      "lines": [
+        "KGL",
+        "SAL"
+      ],
+      "walkMeters": 221,
+      "stopNames": [
+        {
+          "stop_id": "KG09",
+          "stop_name": "BANDAR UTAMA"
+        },
+        {
+          "stop_id": "SA1",
+          "stop_name": "BANDAR UTAMA"
+        }
+      ]
+    },
+    {
+      "name": "BANDARAYA - UOB",
+      "stations": [
+        "AG6",
+        "SP6"
+      ],
+      "lines": [
+        "AGL",
+        "SPL"
+      ],
+      "walkMeters": 0,
+      "stopNames": [
+        {
+          "stop_id": "AG6",
+          "stop_name": "BANDARAYA - UOB"
+        },
+        {
+          "stop_id": "SP6",
+          "stop_name": "BANDARAYA - UOB"
+        }
+      ]
+    },
+    {
+      "name": "BUKIT BINTANG",
+      "stations": [
+        "KG18A",
+        "MR6"
+      ],
+      "lines": [
+        "KGL",
+        "MRL"
+      ],
+      "walkMeters": 81,
+      "stopNames": [
+        {
+          "stop_id": "KG18A",
+          "stop_name": "BUKIT BINTANG"
+        },
+        {
+          "stop_id": "MR6",
+          "stop_name": "BUKIT BINTANG"
+        }
+      ]
+    },
+    {
+      "name": "CHAN SOW LIN",
+      "stations": [
+        "AG11",
+        "PY24",
+        "SP11"
+      ],
+      "lines": [
+        "AGL",
+        "PYL",
+        "SPL"
+      ],
+      "walkMeters": 115,
+      "stopNames": [
+        {
+          "stop_id": "AG11",
+          "stop_name": "CHAN SOW LIN"
+        },
+        {
+          "stop_id": "SP11",
+          "stop_name": "CHAN SOW LIN"
+        },
+        {
+          "stop_id": "PY24",
+          "stop_name": "CHAN SOW LIN"
+        }
+      ]
+    },
+    {
+      "name": "GLENMARIE",
+      "stations": [
+        "KJ27",
+        "SA7"
+      ],
+      "lines": [
+        "KJL",
+        "SAL"
+      ],
+      "walkMeters": 231,
+      "stopNames": [
+        {
+          "stop_id": "KJ27",
+          "stop_name": "GLENMARIE"
+        },
+        {
+          "stop_id": "SA7",
+          "stop_name": "GLENMARIE 2"
+        }
+      ]
+    },
+    {
+      "name": "HANG TUAH",
+      "stations": [
+        "AG9",
+        "MR4",
+        "SP9"
+      ],
+      "lines": [
+        "AGL",
+        "MRL",
+        "SPL"
+      ],
+      "walkMeters": 56,
+      "stopNames": [
+        {
+          "stop_id": "AG9",
+          "stop_name": "HANG TUAH"
+        },
+        {
+          "stop_id": "SP9",
+          "stop_name": "HANG TUAH"
+        },
+        {
+          "stop_id": "MR4",
+          "stop_name": "HANG TUAH"
+        }
+      ]
+    },
+    {
+      "name": "KL SENTRAL",
+      "stations": [
+        "KJ15",
+        "MR1"
+      ],
+      "lines": [
+        "KJL",
+        "MRL"
+      ],
+      "walkMeters": 246,
+      "stopNames": [
+        {
+          "stop_id": "KJ15",
+          "stop_name": "KL SENTRAL - REDONE"
+        },
+        {
+          "stop_id": "MR1",
+          "stop_name": "KL SENTRAL"
+        }
+      ]
+    },
+    {
+      "name": "KWASA DAMANSARA",
+      "stations": [
+        "KG04",
+        "PY01"
+      ],
+      "lines": [
+        "KGL",
+        "PYL"
+      ],
+      "walkMeters": 23,
+      "stopNames": [
+        {
+          "stop_id": "KG04",
+          "stop_name": "KWASA DAMANSARA"
+        },
+        {
+          "stop_id": "PY01",
+          "stop_name": "KWASA DAMANSARA"
+        }
+      ]
+    },
+    {
+      "name": "MALURI",
+      "stations": [
+        "AG13",
+        "KG22"
+      ],
+      "lines": [
+        "AGL",
+        "KGL"
+      ],
+      "walkMeters": 69,
+      "stopNames": [
+        {
+          "stop_id": "AG13",
+          "stop_name": "MALURI"
+        },
+        {
+          "stop_id": "KG22",
+          "stop_name": "MALURI"
+        }
+      ]
+    },
+    {
+      "name": "MASJID JAMEK",
+      "stations": [
+        "AG7",
+        "KJ13",
+        "SP7"
+      ],
+      "lines": [
+        "AGL",
+        "KJL",
+        "SPL"
+      ],
+      "walkMeters": 69,
+      "stopNames": [
+        {
+          "stop_id": "AG7",
+          "stop_name": "MASJID JAMEK"
+        },
+        {
+          "stop_id": "KJ13",
+          "stop_name": "MASJID JAMEK"
+        },
+        {
+          "stop_id": "SP7",
+          "stop_name": "MASJID JAMEK"
+        }
+      ]
+    },
+    {
+      "name": "MERDEKA",
+      "stations": [
+        "AG8",
+        "KG17",
+        "SP8"
+      ],
+      "lines": [
+        "AGL",
+        "KGL",
+        "SPL"
+      ],
+      "walkMeters": 231,
+      "stopNames": [
+        {
+          "stop_id": "AG8",
+          "stop_name": "PLAZA RAKYAT"
+        },
+        {
+          "stop_id": "SP8",
+          "stop_name": "PLAZA RAKYAT"
+        },
+        {
+          "stop_id": "KG17",
+          "stop_name": "MERDEKA"
+        }
+      ]
+    },
+    {
+      "name": "PASAR SENI",
+      "stations": [
+        "KG16",
+        "KJ14"
+      ],
+      "lines": [
+        "KGL",
+        "KJL"
+      ],
+      "walkMeters": 33,
+      "stopNames": [
+        {
+          "stop_id": "KJ14",
+          "stop_name": "PASAR SENI"
+        },
+        {
+          "stop_id": "KG16",
+          "stop_name": "PASAR SENI"
+        }
+      ]
+    },
+    {
+      "name": "PUDU",
+      "stations": [
+        "AG10",
+        "SP10"
+      ],
+      "lines": [
+        "AGL",
+        "SPL"
+      ],
+      "walkMeters": 0,
+      "stopNames": [
+        {
+          "stop_id": "AG10",
+          "stop_name": "PUDU"
+        },
+        {
+          "stop_id": "SP10",
+          "stop_name": "PUDU"
+        }
+      ]
+    },
+    {
+      "name": "PUTRA HEIGHTS",
+      "stations": [
+        "KJ37",
+        "SP31"
+      ],
+      "lines": [
+        "KJL",
+        "SPL"
+      ],
+      "walkMeters": 24,
+      "stopNames": [
+        {
+          "stop_id": "KJ37",
+          "stop_name": "PUTRA HEIGHTS"
+        },
+        {
+          "stop_id": "SP31",
+          "stop_name": "PUTRA HEIGHTS"
+        }
+      ]
+    },
+    {
+      "name": "PWTC",
+      "stations": [
+        "AG4",
+        "SP4"
+      ],
+      "lines": [
+        "AGL",
+        "SPL"
+      ],
+      "walkMeters": 0,
+      "stopNames": [
+        {
+          "stop_id": "AG4",
+          "stop_name": "PWTC"
+        },
+        {
+          "stop_id": "SP4",
+          "stop_name": "PWTC"
+        }
+      ]
+    },
+    {
+      "name": "SENTUL",
+      "stations": [
+        "AG2",
+        "SP2"
+      ],
+      "lines": [
+        "AGL",
+        "SPL"
+      ],
+      "walkMeters": 0,
+      "stopNames": [
+        {
+          "stop_id": "AG2",
+          "stop_name": "SENTUL"
+        },
+        {
+          "stop_id": "SP2",
+          "stop_name": "SENTUL"
+        }
+      ]
+    },
+    {
+      "name": "SENTUL TIMUR",
+      "stations": [
+        "AG1",
+        "SP1"
+      ],
+      "lines": [
+        "AGL",
+        "SPL"
+      ],
+      "walkMeters": 0,
+      "stopNames": [
+        {
+          "stop_id": "AG1",
+          "stop_name": "SENTUL TIMUR"
+        },
+        {
+          "stop_id": "SP1",
+          "stop_name": "SENTUL TIMUR"
+        }
+      ]
+    },
+    {
+      "name": "SULTAN ISMAIL",
+      "stations": [
+        "AG5",
+        "SP5"
+      ],
+      "lines": [
+        "AGL",
+        "SPL"
+      ],
+      "walkMeters": 0,
+      "stopNames": [
+        {
+          "stop_id": "AG5",
+          "stop_name": "SULTAN ISMAIL"
+        },
+        {
+          "stop_id": "SP5",
+          "stop_name": "SULTAN ISMAIL"
+        }
+      ]
+    },
+    {
+      "name": "SUNGAI BESI",
+      "stations": [
+        "PY29",
+        "SP16"
+      ],
+      "lines": [
+        "PYL",
+        "SPL"
+      ],
+      "walkMeters": 39,
+      "stopNames": [
+        {
+          "stop_id": "SP16",
+          "stop_name": "SUNGAI BESI"
+        },
+        {
+          "stop_id": "PY29",
+          "stop_name": "SUNGAI BESI"
+        }
+      ]
+    },
+    {
+      "name": "TITIWANGSA",
+      "stations": [
+        "AG3",
+        "MR11",
+        "PY17",
+        "SP3"
+      ],
+      "lines": [
+        "AGL",
+        "MRL",
+        "PYL",
+        "SPL"
+      ],
+      "walkMeters": 102,
+      "stopNames": [
+        {
+          "stop_id": "AG3",
+          "stop_name": "TITIWANGSA"
+        },
+        {
+          "stop_id": "SP3",
+          "stop_name": "TITIWANGSA"
+        },
+        {
+          "stop_id": "PY17",
+          "stop_name": "TITIWANGSA"
+        },
+        {
+          "stop_id": "MR11",
+          "stop_name": "TITIWANGSA"
+        }
+      ]
+    },
+    {
+      "name": "TUN RAZAK EXCHANGE",
+      "stations": [
+        "KG20",
+        "PY23"
+      ],
+      "lines": [
+        "KGL",
+        "PYL"
+      ],
+      "walkMeters": 58,
+      "stopNames": [
+        {
+          "stop_id": "KG20",
+          "stop_name": "TUN RAZAK EXCHANGE"
+        },
+        {
+          "stop_id": "PY23",
+          "stop_name": "TUN RAZAK EXCHANGE"
+        }
+      ]
+    },
+    {
+      "name": "USJ7",
+      "stations": [
+        "BRT7",
+        "KJ31"
+      ],
+      "lines": [
+        "BRT",
+        "KJL"
+      ],
+      "walkMeters": 50,
+      "stopNames": [
+        {
+          "stop_id": "KJ31",
+          "stop_name": "USJ 7"
+        },
+        {
+          "stop_id": "BRT7",
+          "stop_name": "USJ7"
+        }
+      ]
+    }
+  ]
+}
