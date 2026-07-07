@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Rapid KL · Rail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css" />
+<style>
+  .rail-intro {
+    color: var(--ink-dim); font-size: 12px; line-height: 1.6;
+    margin-bottom: 20px; max-width: 720px;
+  }
+  .rail-intro b { color: var(--ink); font-weight: 500; }
+
+  .line-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+  }
+  .line-tile {
+    background: var(--bg-panel2); border: 1px solid var(--line);
+    border-left: 5px solid var(--line);
+    padding: 18px 18px 16px; cursor: pointer;
+    transition: transform .12s, background .12s, border-color .12s;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .line-tile:hover { transform: translateY(-2px); background: #1a2128; }
+
+  .line-tile-head { display: flex; align-items: center; gap: 12px; }
+  .line-chip {
+    width: 46px; height: 46px; flex-shrink: 0;
+    display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 14px;
+    color: #fff; position: relative;
+  }
+  .line-chip::after { content:''; position:absolute; inset:0; border: 1px solid rgba(255,255,255,.18); }
+  .line-tile-title { min-width: 0; }
+  .line-tile-title h3 {
+    font-family: var(--display); font-weight: 500; font-size: 15px;
+    margin: 0 0 3px; letter-spacing: -0.005em; line-height: 1.25;
+  }
+  .line-tile-type {
+    font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .line-tile-foot {
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid var(--line); padding-top: 10px;
+    font-size: 11px; color: var(--ink-dim);
+  }
+  .line-tile-foot .count { color: var(--ink); font-weight: 500; }
+  .line-tile-foot .go { color: var(--accent); letter-spacing: .1em; text-transform: uppercase; font-size: 10px; }
+
+  .loading { text-align: center; padding: 60px 0; color: var(--ink-soft);
+             font-size: 11px; letter-spacing: .2em; text-transform: uppercase; }
+
+  .rail-note {
+    margin-top: 24px; padding: 14px 16px;
+    background: rgba(96,165,250,.06); border-left: 3px solid var(--info);
+    font-size: 11px; color: var(--ink-dim); line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo-mark"></div>
+    <div>
+      <h1>Rapid KL Ops</h1>
+      <small>Realtime Monitor</small>
+    </div>
+  </div>
+  <nav class="tabs">
+    <a href="/">Bus Live</a>
+    <a href="/rail.html" class="active">Rail</a>
+    <a href="/alerts.html">Announcements</a>
+  </nav>
+  <div class="header-right">
+    <div>
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="clock-label">KL · MYT</div>
+    </div>
+    <div class="pulse off" id="pulse"></div>
+  </div>
+</header>
+
+<main>
+  <p class="rail-intro">
+    <b>LRT, MRT, Monorail &amp; BRT</b> lines in the Klang Valley.
+    Tap a line to see its stations and the next scheduled trains.
+  </p>
+
+  <div id="line-grid" class="line-grid">
+    <div class="loading">Loading lines…</div>
+  </div>
+
+  <div class="rail-note">
+    Times are based on the published GTFS schedule (frequency + timetable), not live train positions —
+    Prasarana does not currently publish realtime rail data. Actual trains may run earlier or later.
+  </div>
+</main>
+
+<footer>
+  Rail schedule: <a href="https://developer.data.gov.my/realtime-api/gtfs-static" target="_blank">data.gov.my GTFS Static</a> ·
+  Unofficial display, not affiliated with Rapid KL.
+</footer>
+
+<script src="/app.js"></script>
+<script>
+  const grid = document.getElementById('line-grid');
+
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+  async function loadLines() {
+    try {
+      const data = await fetch('/api/rail/lines').then(r => r.json());
+      if (!data.loaded) { setTimeout(loadLines, 3000); return; }
+      const lines = data.lines || [];
+      if (!lines.length) { grid.innerHTML = '<div class="loading">No lines available</div>'; return; }
+      grid.innerHTML = lines.map(L => `
+        <div class="line-tile" style="border-left-color:${L.color}" onclick="location.href='/station.html?line=${encodeURIComponent(L.route_id)}'">
+          <div class="line-tile-head">
+            <div class="line-chip" style="background:${L.color}">${escapeHtml(L.short)}</div>
+            <div class="line-tile-title">
+              <h3>${escapeHtml(L.long)}</h3>
+              <div class="line-tile-type">${escapeHtml(L.type)}</div>
+            </div>
+          </div>
+          <div class="line-tile-foot">
+            <span class="count">${L.stationCount} stations</span>
+            <span class="go">View →</span>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      grid.innerHTML = '<div class="loading">Could not load lines</div>';
+      console.error(e);
+    }
+  }
+  loadLines();
+</script>
+</body>
+</html>

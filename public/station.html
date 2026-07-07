@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Rapid KL · Station Times</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css" />
+<style>
+  .back-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--ink-dim); margin-bottom: 16px;
+  }
+  .back-link:hover { color: var(--accent); }
+
+  .line-header {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 20px;
+  }
+  .line-header .chip {
+    width: 52px; height: 52px; flex-shrink: 0; display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 16px; color: #fff;
+    position: relative;
+  }
+  .line-header .chip::after { content:''; position:absolute; inset:0; border:1px solid rgba(255,255,255,.18); }
+  .line-header h1 {
+    font-family: var(--display); font-weight: 700; font-size: 22px;
+    margin: 0; letter-spacing: -0.01em;
+  }
+  .line-header .sub { font-size: 11px; color: var(--ink-dim);
+                      letter-spacing: .15em; text-transform: uppercase; margin-top: 3px; }
+
+  .station-layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
+  @media (max-width: 860px) { .station-layout { grid-template-columns: 1fr; } }
+
+  /* station list — vertical line diagram */
+  .station-list { position: relative; }
+  .station-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 12px; cursor: pointer; position: relative;
+    border: 1px solid transparent; transition: background .1s, border-color .1s;
+  }
+  .station-item:hover { background: var(--bg-panel2); }
+  .station-item.active { background: var(--bg-panel2); border-color: var(--accent); }
+  .station-dot {
+    width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+    border: 3px solid var(--bg); position: relative; z-index: 2;
+  }
+  /* connecting line between dots */
+  .station-item:not(:last-child) .station-dot::after {
+    content: ''; position: absolute; top: 100%; left: 50%;
+    transform: translateX(-50%);
+    width: 3px; height: calc(100% + 20px);
+    background: var(--line-color, var(--line)); z-index: 1;
+  }
+  .station-name { font-size: 13px; color: var(--ink); }
+  .station-item.active .station-name { color: var(--accent); font-weight: 500; }
+  .station-code { font-size: 10px; color: var(--ink-soft); margin-left: auto;
+                  font-variant-numeric: tabular-nums; }
+
+  /* arrivals panel */
+  .arrivals-empty {
+    text-align: center; padding: 80px 20px; color: var(--ink-soft);
+    font-size: 12px; letter-spacing: .1em;
+  }
+  .arrivals-empty .big { font-size: 40px; margin-bottom: 16px; opacity: .5; }
+
+  .direction-block { margin-bottom: 24px; }
+  .direction-head {
+    font-size: 11px; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--ink-dim); margin-bottom: 12px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .direction-head .arrow { color: var(--accent); }
+  .direction-head b { color: var(--ink); font-weight: 700; }
+
+  .train-row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 16px; background: var(--bg-panel2);
+    border-left: 3px solid var(--line-color, var(--accent));
+    margin-bottom: 8px;
+  }
+  .train-eta {
+    font-family: var(--display); font-weight: 700;
+    font-size: 26px; min-width: 90px; font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .train-eta .unit { font-size: 12px; color: var(--ink-dim); font-weight: 500; margin-left: 3px; }
+  .train-eta.now { color: var(--ok); }
+  .train-eta.soon { color: var(--warn); }
+  .train-info { flex: 1; }
+  .train-dest { font-size: 13px; color: var(--ink); margin-bottom: 2px; }
+  .train-sched { font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+  .updated-line { font-size: 10px; color: var(--ink-soft); letter-spacing: .1em;
+                  text-transform: uppercase; margin-top: 4px; text-align: right; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo-mark"></div>
+    <div>
+      <h1>Rapid KL Ops</h1>
+      <small>Realtime Monitor</small>
+    </div>
+  </div>
+  <nav class="tabs">
+    <a href="/">Bus Live</a>
+    <a href="/rail.html" class="active">Rail</a>
+    <a href="/alerts.html">Announcements</a>
+  </nav>
+  <div class="header-right">
+    <div>
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="clock-label">KL · MYT</div>
+    </div>
+    <div class="pulse off" id="pulse"></div>
+  </div>
+</header>
+
+<main>
+  <a href="/rail.html" class="back-link">← All Lines</a>
+
+  <div class="line-header" id="line-header">
+    <div class="chip" id="line-chip">—</div>
+    <div>
+      <h1 id="line-name">Loading…</h1>
+      <div class="sub" id="line-sub"></div>
+    </div>
+  </div>
+
+  <div class="station-layout">
+    <div class="panel">
+      <div class="panel-title"><b>Stations</b><em id="station-count"></em></div>
+      <div class="station-list" id="station-list"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">
+        <b id="arrivals-title">Next Trains</b>
+        <em id="arrivals-sub"></em>
+      </div>
+      <div id="arrivals">
+        <div class="arrivals-empty">
+          <div class="big">🚇</div>
+          Select a station to see the next trains
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rail-note" style="margin-top:24px; padding:14px 16px; background:rgba(96,165,250,.06); border-left:3px solid var(--info); font-size:11px; color:var(--ink-dim); line-height:1.6;">
+    Times are schedule-based estimates (GTFS frequency + timetable), not live train positions.
+  </div>
+</main>
+
+<footer>
+  Rail schedule: <a href="https://developer.data.gov.my/realtime-api/gtfs-static" target="_blank">data.gov.my GTFS Static</a> ·
+  Unofficial display, not affiliated with Rapid KL.
+</footer>
+
+<script src="/app.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const routeId = params.get('line');
+  let lineColor = '#f6c443';
+  let selectedStop = null;
+  let refreshTimer = null;
+
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+  if (!routeId) {
+    document.getElementById('line-name').textContent = 'No line selected';
+  } else {
+    loadLine();
+  }
+
+  async function loadLine() {
+    try {
+      const data = await fetch(`/api/rail/line/${encodeURIComponent(routeId)}`).then(r => r.json());
+      if (data.error || !data.route) {
+        document.getElementById('line-name').textContent = 'Line not found';
+        return;
+      }
+      const r = data.route;
+      lineColor = r.color || '#f6c443';
+      document.documentElement.style.setProperty('--line-color', lineColor);
+      document.getElementById('line-chip').textContent = r.short;
+      document.getElementById('line-chip').style.background = lineColor;
+      document.getElementById('line-name').textContent = r.long;
+      document.getElementById('line-sub').textContent = r.type;
+      document.title = `${r.long} · Rapid KL`;
+
+      const stations = data.stations || [];
+      document.getElementById('station-count').textContent = `${stations.length} stops`;
+      const list = document.getElementById('station-list');
+      list.innerHTML = stations.map(s => `
+        <div class="station-item" data-stop="${escapeHtml(s.stop_id)}" onclick="selectStation('${escapeHtml(s.stop_id)}','${escapeHtml(s.name)}')">
+          <span class="station-dot" style="background:${lineColor}"></span>
+          <span class="station-name">${escapeHtml(s.name)}</span>
+          <span class="station-code">${escapeHtml(s.stop_id)}</span>
+        </div>
+      `).join('');
+    } catch (e) {
+      document.getElementById('line-name').textContent = 'Could not load line';
+      console.error(e);
+    }
+  }
+
+  window.selectStation = function(stopId, stopName) {
+    selectedStop = stopId;
+    document.querySelectorAll('.station-item').forEach(el =>
+      el.classList.toggle('active', el.dataset.stop === stopId));
+    document.getElementById('arrivals-title').textContent = stopName;
+    if (refreshTimer) clearInterval(refreshTimer);
+    loadArrivals();
+    refreshTimer = setInterval(loadArrivals, 30000);
+  };
+
+  async function loadArrivals() {
+    if (!selectedStop) return;
+    const box = document.getElementById('arrivals');
+    try {
+      const data = await fetch(`/api/rail/arrivals/${encodeURIComponent(selectedStop)}?route=${encodeURIComponent(routeId)}`).then(r => r.json());
+      const dirs = [];
+      if (data.direction0 && data.direction0.length) dirs.push({ label: data.dir0Label, trains: data.direction0 });
+      if (data.direction1 && data.direction1.length) dirs.push({ label: data.dir1Label, trains: data.direction1 });
+
+      if (!dirs.length) {
+        box.innerHTML = `<div class="arrivals-empty">No more trains scheduled in the next 90 minutes.<br><span style="font-size:11px;opacity:.7">(Service may have ended for today)</span></div>`;
+        return;
+      }
+
+      box.innerHTML = dirs.map(d => `
+        <div class="direction-block">
+          <div class="direction-head">
+            <span class="arrow">→</span> Towards <b>${escapeHtml(d.label || '—')}</b>
+          </div>
+          ${d.trains.slice(0, 5).map(t => {
+            const eta = t.minutesAway;
+            const cls = eta <= 1 ? 'now' : (eta <= 5 ? 'soon' : '');
+            const etaText = eta <= 0 ? 'Now' : eta;
+            return `
+              <div class="train-row">
+                <div class="train-eta ${cls}">${etaText}${eta > 0 ? '<span class="unit">min</span>' : ''}</div>
+                <div class="train-info">
+                  <div class="train-dest">${escapeHtml(t.headsign || d.label || '')}</div>
+                  <div class="train-sched">departs ${escapeHtml(t.scheduledDeparture)}</div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      `).join('') + `<div class="updated-line">updated ${new Date().toLocaleTimeString('en-GB',{hour12:false,timeZone:'Asia/Kuala_Lumpur'})}</div>`;
+    } catch (e) {
+      box.innerHTML = `<div class="arrivals-empty">Could not load arrivals</div>`;
+      console.error(e);
+    }
+  }
+</script>
+</body>
+</html>

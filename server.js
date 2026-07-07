@@ -16,6 +16,7 @@ const { WebSocketServer } = require('ws');
 const GtfsRealtimeBindings = require('gtfs-realtime-bindings');
 const unzipper = require('unzipper');
 const { Readable } = require('stream');
+const railModule = require('./rail');
 
 const PORT = process.env.PORT || 3000;
 
@@ -513,6 +514,25 @@ app.get('/api/route/:routeId/shapes', (req, res) => {
   res.json({ route, polylines });
 });
 
+// ─── Rail API (schedule-based, from rapid-rail-kl GTFS static) ─────────────
+app.get('/api/rail/lines', (_req, res) => {
+  res.json({ lines: railModule.listLines(), loaded: railModule.rail.loaded });
+});
+
+app.get('/api/rail/line/:routeId', (req, res) => {
+  const data = railModule.lineStations(req.params.routeId);
+  if (!data.route) return res.status(404).json({ error: 'line not found' });
+  res.json(data);
+});
+
+app.get('/api/rail/arrivals/:stopId', (req, res) => {
+  const { stopId } = req.params;
+  const routeId = req.query.route;
+  if (!routeId) return res.status(400).json({ error: 'route query param required' });
+  if (!railModule.rail.stops[stopId]) return res.status(404).json({ error: 'stop not found' });
+  res.json(railModule.nextTrains(routeId, stopId, new Date(), 90));
+});
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', ws =>
@@ -529,7 +549,9 @@ server.listen(PORT, () => {
   pollBuses().catch(e => console.error('bus poll error:', e));
   pollRss().catch(e => console.error('rss poll error:', e));
   loadGtfsStatic().catch(e => console.error('[gtfs-static]', e.message));
+  railModule.loadRailGtfs().catch(e => console.error('[rail]', e.message));
   setInterval(() => pollBuses().catch(e => console.error('bus poll error:', e)), BUS_POLL_MS);
   setInterval(() => pollRss().catch(e => console.error('rss poll error:', e)), RSS_POLL_MS);
   setInterval(() => loadGtfsStatic().catch(e => console.error('[gtfs-static]', e.message)), GTFS_REFRESH_MS);
+  setInterval(() => railModule.loadRailGtfs().catch(e => console.error('[rail]', e.message)), railModule.REFRESH_MS);
 });
