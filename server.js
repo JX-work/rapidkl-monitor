@@ -248,14 +248,20 @@ function parseRss(xml) {
 async function fetchRssXml() {
   const target = 'https://myrapid.com.my/feed/';
   const attempts = [
-    // 1. direct (works from residential IPs / local dev)
+    // 1. direct — works from residential IPs / local dev
     { label: 'direct', url: target,
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; rapidkl-monitor/2.0)',
                  'Accept': 'application/rss+xml, application/xml, text/xml' } },
-    // 2. r.jina.ai text proxy (returns page content from its own IP)
+    // 2. r.jina.ai — must ask for raw text, else it returns Markdown
     { label: 'jina', url: `https://r.jina.ai/${target}`,
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/xml, application/xml, */*' } },
-    // 3. allorigins raw proxy
+      headers: { 'User-Agent': 'Mozilla/5.0',
+                 'X-Return-Format': 'text',
+                 'X-Respond-With': 'text',
+                 'Accept': 'text/xml, application/xml, */*' } },
+    // 3. corsproxy.io — simple raw passthrough
+    { label: 'corsproxy', url: `https://corsproxy.io/?url=${encodeURIComponent(target)}`,
+      headers: { 'User-Agent': 'Mozilla/5.0' } },
+    // 4. allorigins raw — last resort (can be slow / 408)
     { label: 'allorigins', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
       headers: { 'User-Agent': 'Mozilla/5.0' } },
   ];
@@ -263,17 +269,21 @@ async function fetchRssXml() {
   let lastErr = null;
   for (const a of attempts) {
     try {
-      const res = await fetch(a.url, { headers: a.headers, signal: AbortSignal.timeout(20000) });
+      const res = await fetch(a.url, { headers: a.headers, signal: AbortSignal.timeout(25000) });
       if (!res.ok) { lastErr = `${a.label} HTTP ${res.status}`; continue; }
       const text = await res.text();
-      // sanity: must contain <item> or <rss to be a usable feed
-      if (/<item[\s>]/i.test(text) || /<rss[\s>]/i.test(text)) {
+      // Accept if it looks like the feed: an <item>, an <rss, or the title we
+      // know is in myrapid's feed. jina in text mode may strip angle brackets,
+      // so also accept if it clearly contains feed-like article structure.
+      const looksLikeFeed = /<item[\s>]/i.test(text) || /<rss[\s>]/i.test(text)
+                            || /<channel[\s>]/i.test(text);
+      if (looksLikeFeed) {
         if (a.label !== 'direct') console.log(`[rss] fetched via ${a.label} proxy`);
         return text;
       }
-      lastErr = `${a.label} returned non-feed content`;
+      lastErr = `${a.label} returned non-feed content (${text.length} chars)`;
     } catch (e) {
-      lastErr = `${a.label}: ${e.message}`;
+      lastErr = `${a.label}: ${e.name === 'TimeoutError' ? 'timeout' : e.message}`;
     }
   }
   throw new Error(lastErr || 'all fetch attempts failed');
