@@ -344,14 +344,21 @@
 
   // ─── Google Maps "transit times" deep link ─────────────────────────────
   // Bus arrival times aren't in the public feed, but Google Maps has them.
-  // Point the button at the current map centre with the transit layer on.
+  // Search the currently-selected route on Google Maps; if none selected,
+  // search transit around the current map centre.
   const gmapsTransitBtn = document.getElementById('gmaps-transit-btn');
+  const gmapsTransitLabel = gmapsTransitBtn.querySelector('span');
   function updateTransitLink() {
-    const c = map.getCenter();
-    const z = Math.round(map.getZoom());
-    // @lat,lng,zoom + transit layer (…/data=!5m1!1e2 turns on public transit)
-    gmapsTransitBtn.href =
-      `https://www.google.com/maps/@${c.lat.toFixed(6)},${c.lng.toFixed(6)},${z}z/data=!5m1!1e2`;
+    const sel = selectedRoute ? allRoutes.find(x => x.route_id === selectedRoute) : null;
+    if (sel) {
+      const code = sel.short_name || sel.route_id;
+      gmapsTransitBtn.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(code)}`;
+      if (gmapsTransitLabel) gmapsTransitLabel.textContent = `${code} on Maps`;
+    } else {
+      const c = map.getCenter();
+      gmapsTransitBtn.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('public transport')}&center=${c.lat.toFixed(6)},${c.lng.toFixed(6)}`;
+      if (gmapsTransitLabel) gmapsTransitLabel.textContent = 'Transit times';
+    }
   }
   updateTransitLink();
   map.on('moveend zoomend', updateTransitLink);
@@ -560,6 +567,7 @@
       console.error(e);
     }
     applyVehicleHighlight();
+    updateTransitLink();
   }
 
   function clearRoute() {
@@ -570,6 +578,7 @@
     activeEl.classList.remove('on');
     clearRouteLines();
     applyVehicleHighlight();
+    updateTransitLink();
   }
 
   function clearRouteLines() {
@@ -644,13 +653,12 @@
         const r = allRoutes.find(x => x.route_id === selectedRoute);
         if (r && r.untracked) {
           const routeCode = r.short_name || r.route_id;
-          const q = encodeURIComponent(`Rapid KL ${routeCode} ${r.long_name || ''} bus route schedule`);
-          const searchUrl = `https://www.google.com/search?q=${q}`;
+          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(routeCode)}`;
           meta.innerHTML =
             `<span style="color:var(--warn)">⚠ No realtime data — data.gov.my doesn't publish live positions for this route.</span>` +
-            `<a href="${searchUrl}" target="_blank" rel="noopener" class="gmaps-route-btn">` +
-            `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 001.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 00-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 005.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>` +
-            `Search ${escapeHtml(routeCode)} route info →</a>`;
+            `<a href="${mapsUrl}" target="_blank" rel="noopener" class="gmaps-route-btn">` +
+            `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>` +
+            `Search "${escapeHtml(routeCode)}" on Google Maps →</a>`;
         } else {
           const dirs = Math.max(1, Math.round(routePolylines.length / 3));
           meta.textContent = `${dirs} direction(s) · ${countMatchingBuses()} buses on this route`;
