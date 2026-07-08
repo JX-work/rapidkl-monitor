@@ -352,11 +352,11 @@
     const sel = selectedRoute ? allRoutes.find(x => x.route_id === selectedRoute) : null;
     if (sel) {
       const code = sel.short_name || sel.route_id;
-      gmapsTransitBtn.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(code)}`;
+      gmapsTransitBtn.href = `https://www.google.com/maps/search/${encodeURIComponent(code)}`;
       if (gmapsTransitLabel) gmapsTransitLabel.textContent = `${code} on Maps`;
     } else {
       const c = map.getCenter();
-      gmapsTransitBtn.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('public transport')}&center=${c.lat.toFixed(6)},${c.lng.toFixed(6)}`;
+      gmapsTransitBtn.href = `https://www.google.com/maps/@${c.lat.toFixed(6)},${c.lng.toFixed(6)},13z/data=!5m1!1e2`;
       if (gmapsTransitLabel) gmapsTransitLabel.textContent = 'Transit times';
     }
   }
@@ -653,12 +653,12 @@
         const r = allRoutes.find(x => x.route_id === selectedRoute);
         if (r && r.untracked) {
           const routeCode = r.short_name || r.route_id;
-          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(routeCode)}`;
+          const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(routeCode)}`;
           meta.innerHTML =
             `<span style="color:var(--warn)">⚠ No realtime data — data.gov.my doesn't publish live positions for this route.</span>` +
             `<a href="${mapsUrl}" target="_blank" rel="noopener" class="gmaps-route-btn">` +
             `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>` +
-            `Search "${escapeHtml(routeCode)}" on Google Maps →</a>`;
+            `Open ${escapeHtml(routeCode)} in Google Maps →</a>`;
         } else {
           const dirs = Math.max(1, Math.round(routePolylines.length / 3));
           meta.textContent = `${dirs} direction(s) · ${countMatchingBuses()} buses on this route`;
