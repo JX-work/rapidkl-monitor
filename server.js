@@ -494,6 +494,15 @@ function publicRouteId(r) {
   return r.route_id;
 }
 
+// Routes that exist in the static GTFS but which data.gov.my NEVER publishes
+// vehicle positions for (confirmed against the official category list). Buses
+// physically run, but Prasarana doesn't feed their AVL to the public API, so
+// we flag them instead of showing a misleading "0 buses".
+const UNTRACKED_INTERNAL_IDS = new Set([
+  'P0010','P0020','P0030','P0040','P0050','P0060',              // PJ01–PJ06
+  'P1010','P1020','P1030','P1040','P1050','P1060','P1070','P1080', // P101–P108
+]);
+
 // Lookup: public_id -> internal route_id (so we can find shapes when the
 // frontend asks for /api/route/T807/shapes).
 function rebuildPublicIdIndex() {
@@ -523,6 +532,7 @@ app.get('/api/routes', (_req, res) => {
         short_name: r.route_short_name || '',
         long_name: r.route_long_name || '',
         color: r.route_color,
+        untracked: UNTRACKED_INTERNAL_IDS.has(r.route_id),  // no realtime upstream
       };
     })
     .filter(r => {
