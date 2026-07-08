@@ -201,6 +201,10 @@
   }
   .gmaps-transit-btn:hover { background: rgba(96,165,250,.12); }
   .gmaps-transit-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .gmaps-transit-btn.disabled {
+    opacity: .4; cursor: not-allowed; pointer-events: none;
+    border-color: var(--line); color: var(--ink-soft);
+  }
   @media (max-width: 760px) {
     .locate-btn { top: 12px; right: 12px; padding: 10px; }
     .locate-btn span { display: none; }
@@ -349,19 +353,25 @@
   const gmapsTransitBtn = document.getElementById('gmaps-transit-btn');
   const gmapsTransitLabel = gmapsTransitBtn.querySelector('span');
   function updateTransitLink() {
-    const sel = selectedRoute ? allRoutes.find(x => x.route_id === selectedRoute) : null;
+    const sr = (typeof selectedRoute !== 'undefined') ? selectedRoute : null;
+    const ar = (typeof allRoutes !== 'undefined') ? allRoutes : [];
+    const sel = sr ? ar.find(x => x.route_id === sr) : null;
     if (sel) {
+      // A route is selected → enable, link to that route on Google Maps.
       const code = sel.short_name || sel.route_id;
       gmapsTransitBtn.href = `https://www.google.com/maps/search/${encodeURIComponent(code)}`;
+      gmapsTransitBtn.classList.remove('disabled');
       if (gmapsTransitLabel) gmapsTransitLabel.textContent = `${code} on Maps`;
     } else {
-      const c = map.getCenter();
-      gmapsTransitBtn.href = `https://www.google.com/maps/@${c.lat.toFixed(6)},${c.lng.toFixed(6)},13z/data=!5m1!1e2`;
-      if (gmapsTransitLabel) gmapsTransitLabel.textContent = 'Transit times';
+      // No route selected → disable the button (nothing to look up).
+      gmapsTransitBtn.removeAttribute('href');
+      gmapsTransitBtn.classList.add('disabled');
+      if (gmapsTransitLabel) gmapsTransitLabel.textContent = 'Select a route';
     }
   }
-  updateTransitLink();
-  map.on('moveend zoomend', updateTransitLink);
+  // Defer first call to after the whole script has run (selectedRoute/allRoutes
+  // are declared later; calling now would hit the temporal dead zone).
+  setTimeout(updateTransitLink, 0);
 
   // ─── markers per vehicle (re-used across snapshots) ────────────────────
   const markers = new Map();     // vehicleId -> { marker, routeId, el }
