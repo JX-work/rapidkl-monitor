@@ -74,6 +74,34 @@ function secToHHMM(sec) {
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
 }
 
+// ─── Malaysia-time helpers ──────────────────────────────────────────────────
+// KL rail schedules are in Asia/Kuala_Lumpur (UTC+8, no DST). The production
+// server runs in UTC, so we must NOT use the server's local getHours()/getDay()
+// — we convert the instant to KL time explicitly. Returns the wall-clock parts
+// as they would read on a clock in Kuala Lumpur, regardless of server timezone.
+function klParts(date = new Date()) {
+  // en-GB gives 24h; we pull each field via Intl to avoid manual offset math
+  // (robust even if the host has a weird timezone configured).
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kuala_Lumpur',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    weekday: 'short', hour12: false,
+  });
+  const parts = {};
+  for (const p of fmt.formatToParts(date)) parts[p.type] = p.value;
+  const weekdayMap = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
+  let hour = parseInt(parts.hour, 10);
+  if (hour === 24) hour = 0; // some environments emit "24" at midnight
+  return {
+    year: parseInt(parts.year, 10),
+    month: parseInt(parts.month, 10),
+    day: parseInt(parts.day, 10),
+    dow: weekdayMap[parts.weekday] ?? 0,
+    secOfDay: hour*3600 + parseInt(parts.minute,10)*60 + parseInt(parts.second,10),
+  };
+}
+
 // ─── module state ───────────────────────────────────────────────────────────
 const rail = {
   loaded: false,
@@ -90,10 +118,10 @@ const rail = {
 
 // ─── which GTFS calendar service applies today ──────────────────────────────
 function activeServiceIds(now = new Date()) {
-  // Map JS day (0=Sun..6=Sat) to GTFS calendar columns.
-  const day = now.getDay();
-  const dayField = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][day];
-  const ymd = now.getFullYear() * 10000 + (now.getMonth()+1) * 100 + now.getDate();
+  // Use Kuala Lumpur wall-clock, not the server's timezone.
+  const kl = klParts(now);
+  const dayField = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][kl.dow];
+  const ymd = kl.year * 10000 + kl.month * 100 + kl.day;
   const ids = [];
   for (const [sid, c] of Object.entries(rail.calendar)) {
     if (c[dayField] !== '1') continue;
@@ -233,7 +261,7 @@ async function loadRailGtfs() {
 // `horizonMin` minutes, based on frequency expansion.
 function nextTrains(routeId, stopId, now = new Date(), horizonMin = 60) {
   const services = new Set(activeServiceIds(now));
-  const nowSec = now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds();
+  const nowSec = klParts(now).secOfDay;  // seconds-of-day in KL time
   const horizonSec = nowSec + horizonMin * 60;
 
   const result = { direction0: [], direction1: [] };
