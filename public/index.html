@@ -190,10 +190,24 @@
   .locate-btn[data-state="active"]   { color: var(--accent); border-color: var(--accent); background: rgba(246,196,67,.08); }
   .locate-btn[data-state="error"]    { color: var(--err); border-color: var(--err); }
   .locate-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .gmaps-transit-btn {
+    position: absolute; top: 60px; right: 16px; z-index: 500;
+    background: var(--bg-panel); border: 1px solid var(--info);
+    color: var(--info); padding: 10px 14px;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .15em; text-transform: uppercase;
+    cursor: pointer; display: flex; align-items: center; gap: 8px;
+    transition: all .15s;
+  }
+  .gmaps-transit-btn:hover { background: rgba(96,165,250,.12); }
+  .gmaps-transit-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
   @media (max-width: 760px) {
     .locate-btn { top: 12px; right: 12px; padding: 10px; }
     .locate-btn span { display: none; }
     .locate-btn svg { width: 18px; height: 18px; }
+    .gmaps-transit-btn { top: 56px; right: 12px; padding: 10px; }
+    .gmaps-transit-btn span { display: none; }
+    .gmaps-transit-btn svg { width: 18px; height: 18px; }
   }
 
   /* device location marker — person icon with pulsing halo */
@@ -289,6 +303,10 @@
         </svg>
         <span id="locate-label">Locate Me</span>
       </button>
+      <a id="gmaps-transit-btn" class="gmaps-transit-btn" href="#" target="_blank" rel="noopener" title="See live transit on Google Maps">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/></svg>
+        <span>Transit times</span>
+      </a>
       <div id="map"></div>
     </div>
   </div>
@@ -323,6 +341,20 @@
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
   }).addTo(map);
+
+  // ─── Google Maps "transit times" deep link ─────────────────────────────
+  // Bus arrival times aren't in the public feed, but Google Maps has them.
+  // Point the button at the current map centre with the transit layer on.
+  const gmapsTransitBtn = document.getElementById('gmaps-transit-btn');
+  function updateTransitLink() {
+    const c = map.getCenter();
+    const z = Math.round(map.getZoom());
+    // @lat,lng,zoom + transit layer (…/data=!5m1!1e2 turns on public transit)
+    gmapsTransitBtn.href =
+      `https://www.google.com/maps/@${c.lat.toFixed(6)},${c.lng.toFixed(6)},${z}z/data=!5m1!1e2`;
+  }
+  updateTransitLink();
+  map.on('moveend zoomend', updateTransitLink);
 
   // ─── markers per vehicle (re-used across snapshots) ────────────────────
   const markers = new Map();     // vehicleId -> { marker, routeId, el }
@@ -611,13 +643,14 @@
       if (meta) {
         const r = allRoutes.find(x => x.route_id === selectedRoute);
         if (r && r.untracked) {
-          const routeName = `${r.short_name || r.route_id} ${r.long_name || ''}`.trim();
-          const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Rapid KL ' + (r.short_name || r.route_id) + ' bus route Kuala Lumpur')}`;
+          const routeCode = r.short_name || r.route_id;
+          const q = encodeURIComponent(`Rapid KL ${routeCode} ${r.long_name || ''} bus route schedule`);
+          const searchUrl = `https://www.google.com/search?q=${q}`;
           meta.innerHTML =
             `<span style="color:var(--warn)">⚠ No realtime data — data.gov.my doesn't publish live positions for this route.</span>` +
-            `<a href="${gmapsUrl}" target="_blank" rel="noopener" class="gmaps-route-btn">` +
-            `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>` +
-            `View this route on Google Maps →</a>`;
+            `<a href="${searchUrl}" target="_blank" rel="noopener" class="gmaps-route-btn">` +
+            `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 001.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 00-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 005.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>` +
+            `Search ${escapeHtml(routeCode)} route info →</a>`;
         } else {
           const dirs = Math.max(1, Math.round(routePolylines.length / 3));
           meta.textContent = `${dirs} direction(s) · ${countMatchingBuses()} buses on this route`;
