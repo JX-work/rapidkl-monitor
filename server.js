@@ -467,11 +467,18 @@ function snapshot() {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+const START_TIME = Date.now();
+
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/api/snapshot', (_req, res) => res.json(snapshot()));
-app.get('/healthz', (_req, res) => res.json({ ok: true,
-  lastBus: state.lastBusUpdate, lastRss: state.lastRssUpdate }));
+app.get('/healthz', (_req, res) => res.json({
+  ok: true,
+  uptimeSec: Math.round((Date.now() - START_TIME) / 1000),
+  lastBus: state.lastBusUpdate,
+  lastRss: state.lastRssUpdate,
+  gtfsStaticLoaded: state.gtfsStaticLoaded,
+}));
 
 // List of all known routes (sorted by display name) for the route picker.
 //
@@ -607,15 +614,47 @@ function broadcast(msg) {
   for (const c of wss.clients) if (c.readyState === 1) c.send(data);
 }
 
+let pollIntervals = [];
+let shuttingDown = false;
+
 server.listen(PORT, () => {
   console.log(`Rapid KL monitor listening on :${PORT}`);
+  console.log(`Node ${process.version} · env=${process.env.NODE_ENV || 'development'}`);
   console.log(`Bus poll: ${BUS_POLL_MS/1000}s · RSS poll: ${RSS_POLL_MS/1000}s`);
   pollBuses().catch(e => console.error('bus poll error:', e));
   pollRss().catch(e => console.error('rss poll error:', e));
   loadGtfsStatic().catch(e => console.error('[gtfs-static]', e.message));
   railModule.loadRailGtfs().catch(e => console.error('[rail]', e.message));
-  setInterval(() => pollBuses().catch(e => console.error('bus poll error:', e)), BUS_POLL_MS);
-  setInterval(() => pollRss().catch(e => console.error('rss poll error:', e)), RSS_POLL_MS);
-  setInterval(() => loadGtfsStatic().catch(e => console.error('[gtfs-static]', e.message)), GTFS_REFRESH_MS);
-  setInterval(() => railModule.loadRailGtfs().catch(e => console.error('[rail]', e.message)), railModule.REFRESH_MS);
+  pollIntervals.push(setInterval(() => pollBuses().catch(e => console.error('bus poll error:', e)), BUS_POLL_MS));
+  pollIntervals.push(setInterval(() => pollRss().catch(e => console.error('rss poll error:', e)), RSS_POLL_MS));
+  pollIntervals.push(setInterval(() => loadGtfsStatic().catch(e => console.error('[gtfs-static]', e.message)), GTFS_REFRESH_MS));
+  pollIntervals.push(setInterval(() => railModule.loadRailGtfs().catch(e => console.error('[rail]', e.message)), railModule.REFRESH_MS));
 });
+
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[shutdown] received ${signal}, closing gracefully…`);
+
+  for (const iv of pollIntervals) clearInterval(iv);
+  pollIntervals = [];
+
+  for (const c of wss.clients) {
+    try { c.close(1001, 'server shutting down'); } catch {}
+  }
+  wss.close();
+
+  server.close(err => {
+    if (err) console.error('[shutdown] server.close error:', err);
+    console.log('[shutdown] HTTP server closed, exiting');
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    console.warn('[shutdown] force exit after 10s');
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
